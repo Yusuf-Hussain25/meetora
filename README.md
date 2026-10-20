@@ -8,7 +8,7 @@
 
 Peer-to-peer video calls in the browser with live captions, reactions, raised hands, screen sharing, host controls and a recap of every session.
 
-![Meetora call with five people, live captions and a raised hand](docs/screenshots/call-grid.png)
+![Meetora call with five people, live captions and a raised hand](docs/screenshots/call-grid-light.png)
 
 </div>
 
@@ -20,7 +20,7 @@ Meetora 2.0 is a full redesign and rebuild of a basic course project ("MeetUp").
 
 | Area | 1.0 | 2.0 |
 |---|---|---|
-| Design | Light Tailwind pages with background images | Dark-first "emerald studio" design system: glass panels, aurora background, Geist, light theme + toggle |
+| Design | Light Tailwind pages with background images | "Emerald studio" design system: glass panels, aurora background, Geist; light by default with a dark mode toggle |
 | Joining | Straight into the call | **Lobby** with camera preview, mic level meter, device pickers and who's already inside |
 | In the call | Grid, mute, camera, chat | Adaptive grid + **spotlight/pin**, **active-speaker glow**, **screen sharing**, **reactions**, **raise hand**, **live captions**, people panel, settings, keyboard shortcuts |
 | Host | End meeting (anyone could trigger it) | Host-only **end for all**, **ask to mute / mute all**, **remove participant** |
@@ -57,7 +57,7 @@ Meetora 2.0 is a full redesign and rebuild of a basic course project ("MeetUp").
 - Sessions grouped by day with search and Hosted/Joined filters; recap modal with attendance timeline, transcript search and download, chat log, summary copy and delete.
 
 **Everywhere**
-- Dark and light themes (system preference + manual toggle, no flash on load), responsive from 390px phones to wide desktops, `prefers-reduced-motion` support, skeleton loaders, empty states, toasts, aria labels on icon buttons.
+- Light theme by default with a dark mode toggle (remembered per browser, no flash on load), responsive from 390px phones to wide desktops, `prefers-reduced-motion` support, skeleton loaders, empty states, toasts, aria labels on icon buttons.
 
 ## Screenshots
 
@@ -71,8 +71,8 @@ Meetora 2.0 is a full redesign and rebuild of a basic course project ("MeetUp").
 | Chat panel with message toasts | People panel with host controls |
 | ![Session recap](docs/screenshots/session-recap.png) | ![Sessions](docs/screenshots/sessions.png) |
 | Recap: searchable live-caption transcript | Session history grouped by day |
-| ![Light theme call](docs/screenshots/call-grid-light.png) | ![Light dashboard](docs/screenshots/dashboard-light.png) |
-| Light theme in a call | Light theme dashboard |
+| ![Dark theme call](docs/screenshots/call-grid.png) | ![Light dashboard](docs/screenshots/dashboard-light.png) |
+| Dark mode in a call | Light (default) dashboard |
 
 <p align="center">
   <img src="docs/screenshots/call-mobile.png" width="220" alt="Call on a phone" />
