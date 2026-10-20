@@ -173,10 +173,11 @@ const MeetingRoom = () => {
     })),
   ], [selfName, user?.imageUrl, meeting.screenStream, media.stream, media.audioEnabled, media.videoEnabled, meeting.handRaised, meeting.isHost, meeting.remotes]);
 
+  const { getRemoteLevel } = meeting;
   const speaking = useSpeakers(useMemo(() => [
     { id: 'self', stream: media.stream },
-    ...meeting.remotes.map((r) => ({ id: r.socketId, stream: r.stream })),
-  ], [media.stream, meeting.remotes]));
+    ...meeting.remotes.map((r) => ({ id: r.socketId, level: () => (r.audioEnabled ? getRemoteLevel(r.socketId) : 0) })),
+  ], [media.stream, meeting.remotes, getRemoteLevel]));
 
   useEffect(() => {
     const remoteSpeaker = [...speaking].find((id) => id !== 'self');

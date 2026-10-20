@@ -12,7 +12,10 @@ const VideoTile = ({ p, speaking = false, size = 'md', pinned = false, onPin, si
 
   useEffect(() => {
     const el = videoRef.current;
-    if (el && el.srcObject !== p.stream) el.srcObject = p.stream || null;
+    if (!el) return;
+    if (el.srcObject !== p.stream) el.srcObject = p.stream || null;
+    // A tile can remount when the layout changes; start playback explicitly
+    if (p.stream) el.play?.().catch(() => {});
   }, [p.stream]);
 
   useEffect(() => {

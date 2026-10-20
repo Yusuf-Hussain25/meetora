@@ -345,6 +345,13 @@ export const useMeeting = ({ roomId, joined, media, onMessage }) => {
         setEndInfo({ endedByYou: true });
     }, [cleanupCall]);
 
+    // Remote speaking level (0..1) straight from the RTP receiver, more reliable than Web Audio
+    const getRemoteLevel = useCallback((socketId) => {
+        const receiver = peers.current.get(socketId)?.pc.getReceivers().find((r) => r.track?.kind === "audio");
+        const sources = receiver?.getSynchronizationSources?.() || [];
+        return sources.reduce((max, s) => Math.max(max, s.audioLevel || 0), 0);
+    }, []);
+
     const hostMute = useCallback((socketId) => socket.emit("host-mute", { targetSocketId: socketId }), []);
     const hostMuteAll = useCallback(() => socket.emit("host-mute-all"), []);
     const hostRemove = useCallback((socketId) => socket.emit("host-remove", { targetSocketId: socketId }), []);
@@ -352,7 +359,7 @@ export const useMeeting = ({ roomId, joined, media, onMessage }) => {
     return {
         status, meeting, self, remotes, messages, reactions, captions, handRaised, screenStream, endInfo,
         isHost: Boolean(self?.isHost),
-        syncTrack, sendMessage, sendReaction, toggleHand, sendCaption, startShare, stopShare, leave, endForAll,
+        syncTrack, getRemoteLevel, sendMessage, sendReaction, toggleHand, sendCaption, startShare, stopShare, leave, endForAll,
         hostMute, hostMuteAll, hostRemove,
     };
 };
