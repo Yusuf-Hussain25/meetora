@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+*.pdf
+*.log
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+# local assistant routing notes, not part of the project
+CLAUDE.md
