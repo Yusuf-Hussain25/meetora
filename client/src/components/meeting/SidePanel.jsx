@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { CrownIcon, HandIcon, LinkIcon, MessageSquareIcon, MicIcon, MicOffIcon, MonitorUpIcon, SendHorizonalIcon, UserMinusIcon, VideoIcon, VideoOffIcon, VolumeXIcon, XIcon } from 'lucide-react'
+import { CrownIcon, HandIcon, LinkIcon, MessageSquareIcon, MicIcon, MicOffIcon, MonitorUpIcon, SendHorizonalIcon, SparklesIcon, UserMinusIcon, VideoIcon, VideoOffIcon, VolumeXIcon, XIcon } from 'lucide-react'
 import Avatar from '../ui/Avatar'
 import EmptyState from '../ui/EmptyState'
+import CatchUpPanel from '../ai/CatchUpPanel'
 import { formatTime } from '../../lib/format'
 
 const GROUP_MS = 3 * 60000;
@@ -129,17 +130,22 @@ const People = ({ people, isHost, onMute, onMuteAll, onRemove, onCopyLink }) => 
   );
 };
 
-// Chat and People in one drawer: a right column on desktop, a full-screen sheet on phones.
-const SidePanel = ({ tab, onTab, onClose, chat, people }) => (
-  <aside className="glass fixed inset-0 z-50 flex flex-col sm:static sm:inset-auto sm:z-auto sm:w-[360px] sm:shrink-0 sm:rounded-[24px] animate-pop-in" aria-label={tab === 'chat' ? 'Chat' : 'People'}>
+const LABELS = { chat: 'Chat', people: 'People', ai: 'AI assistant' };
+
+// Chat, People and the AI assistant in one drawer: a right column on desktop, a full-screen sheet on phones.
+const SidePanel = ({ tab, onTab, onClose, chat, people, ai }) => (
+  <aside className="glass fixed inset-0 z-50 flex flex-col sm:static sm:inset-auto sm:z-auto sm:w-[360px] sm:shrink-0 sm:rounded-[24px] animate-pop-in" aria-label={LABELS[tab]}>
     <div className="flex items-center gap-2 border-b border-line p-3">
       <div className="segmented flex-1">
         <button aria-pressed={tab === 'chat'} className="flex-1 justify-center" onClick={() => onTab('chat')}>Chat</button>
         <button aria-pressed={tab === 'people'} className="flex-1 justify-center" onClick={() => onTab('people')}>People · {people.people.length}</button>
+        <button aria-pressed={tab === 'ai'} className="flex-1 justify-center" onClick={() => onTab('ai')}><SparklesIcon size={13} /> AI</button>
       </div>
       <button className="icon-btn" onClick={onClose} aria-label="Close panel"><XIcon size={18} /></button>
     </div>
-    {tab === 'chat' ? <Chat {...chat} /> : <People {...people} />}
+    {tab === 'chat' && <Chat {...chat} />}
+    {tab === 'people' && <People {...people} />}
+    {tab === 'ai' && <CatchUpPanel {...ai} />}
   </aside>
 );
 

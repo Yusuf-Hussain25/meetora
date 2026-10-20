@@ -71,6 +71,18 @@ export async function initDB() {
             );
         `;
 
+        // AI recaps, regenerated when new captions or chat arrive (source_count changes)
+        await sql`
+            CREATE TABLE IF NOT EXISTS meeting_ai_recaps (
+                meeting_id INT PRIMARY KEY REFERENCES meetings(id) ON DELETE CASCADE ON UPDATE CASCADE,
+                data JSONB NOT NULL,
+                provider VARCHAR(20) NOT NULL,
+                model VARCHAR(80) NOT NULL,
+                source_count INT NOT NULL DEFAULT 0,
+                generated_at TIMESTAMPTZ DEFAULT NOW()
+            );
+        `;
+
         await sql`CREATE INDEX IF NOT EXISTS idx_meetings_host ON meetings(host_id, created_at DESC)`;
         await sql`CREATE INDEX IF NOT EXISTS idx_participants_meeting ON meeting_participants(meeting_id)`;
         await sql`CREATE INDEX IF NOT EXISTS idx_participants_user ON meeting_participants(user_id)`;

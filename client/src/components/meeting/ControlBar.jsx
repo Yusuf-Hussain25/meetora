@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   CaptionsIcon, CaptionsOffIcon, ChevronUpIcon, EllipsisIcon, HandIcon, KeyboardIcon, LayoutGridIcon, MessageSquareIcon,
-  MicIcon, MicOffIcon, MonitorUpIcon, MonitorXIcon, PhoneOffIcon, SettingsIcon, SmilePlusIcon, UsersIcon, VideoIcon, VideoOffIcon, LinkIcon,
+  MicIcon, MicOffIcon, MonitorUpIcon, MonitorXIcon, PhoneOffIcon, SettingsIcon, SmilePlusIcon, SparklesIcon, UsersIcon, VideoIcon, VideoOffIcon, LinkIcon,
 } from 'lucide-react'
 
 const REACTIONS = ['👍', '❤️', '😂', '🎉', '👏', '🔥', '😮', '💚'];
@@ -92,6 +92,7 @@ const ControlBar = ({
 
       <CtrlButton icon={MessageSquareIcon} label="Chat" tip="Chat (C)" onClick={() => onTogglePanel('chat')} active={panel === 'chat'} badge={panel === 'chat' ? 0 : unread} />
       <CtrlButton icon={UsersIcon} label="People" tip="People (P)" onClick={() => onTogglePanel('people')} active={panel === 'people'} badge={participantCount} badgeTone="neutral" className="hidden sm:grid" />
+      <CtrlButton icon={SparklesIcon} label="AI assistant" tip="AI: catch me up (A)" onClick={() => onTogglePanel('ai')} active={panel === 'ai'} className="hidden sm:grid" />
 
       <div className="relative" ref={more.ref}>
         <CtrlButton icon={EllipsisIcon} label="More options" tip="More" onClick={() => more.setOpen((o) => !o)} aria-expanded={more.open} />
@@ -99,6 +100,7 @@ const ControlBar = ({
           <div className="absolute bottom-16 right-0 z-30 w-60 overflow-hidden rounded-2xl border border-line-strong bg-panel-solid p-1.5 text-sm shadow-deep animate-pop-in sm:left-1/2 sm:right-auto sm:-translate-x-1/2" role="menu">
             {[
               { icon: UsersIcon, label: 'People', onClick: () => onTogglePanel('people'), mobile: true },
+              { icon: SparklesIcon, label: 'AI: catch me up', onClick: () => onTogglePanel('ai'), mobile: true },
               captionsSupported && { icon: CaptionsIcon, label: captionsOn ? 'Turn off captions' : 'Turn on captions', onClick: onToggleCaptions, mobile: true },
               { icon: LayoutGridIcon, label: layout === 'grid' ? 'Spotlight layout' : 'Grid layout', onClick: onToggleLayout },
               { icon: LinkIcon, label: 'Copy invite link', onClick: onCopyLink },

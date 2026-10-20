@@ -132,6 +132,7 @@ const MeetingRoom = () => {
       else if (k === 'l') toggleCaptions();
       else if (k === 'c') togglePanel('chat');
       else if (k === 'p') togglePanel('people');
+      else if (k === 'a') togglePanel('ai');
       else if (k === 'g') setLayout((l) => (l === 'grid' ? 'spotlight' : 'grid'));
       else if (e.key === '?') setShortcutsOpen(true);
       else if (e.key === 'Escape') setPanel(null);
@@ -302,6 +303,7 @@ const MeetingRoom = () => {
               onRemove: (p) => meeting.hostRemove(p.id),
               onCopyLink: copyInvite,
             }}
+            ai={{ meetingId, captionsOn }}
           />
         )}
       </div>

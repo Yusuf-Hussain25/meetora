@@ -133,6 +133,16 @@ try {
   const stats = await (await fetch(`${API}/api/meetings/stats?tz=Asia/Kolkata`, { headers: { authorization: `Bearer ${await host.token()}` } })).json();
   check("stats return totals and 7 days of activity", stats.totals && stats.activity?.length === 7);
 
+  // AI endpoints follow the same membership rule as session details
+  const aiGet = async (u, path, method = "GET", body) => fetch(`${API}/api/ai${path}`, {
+    method, headers: { authorization: `Bearer ${await u.token()}`, "content-type": "application/json" }, body: body && JSON.stringify(body),
+  });
+  check("AI status needs a session", (await fetch(`${API}/api/ai/status`)).status === 401);
+  check("non-member cannot read a meeting's AI recap", (await aiGet(other, `/meetings/${roomA}/recap`)).status === 404);
+  check("non-member cannot ask about a meeting", (await aiGet(other, `/meetings/${roomA}/ask`, "POST", { question: "What was decided?" })).status === 404);
+  check("non-member cannot get a catch-up", (await aiGet(other, `/meetings/${roomC}/catchup`, "POST", {})).status === 404);
+  check("member can read the AI recap slot", (await aiGet(guest, `/meetings/${roomA}/recap`)).status === 200);
+
   [H, G, O].forEach((s) => s.close());
 } catch (e) {
   fail++; console.error("ERROR", e);

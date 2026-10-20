@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { CalendarPlusIcon, CheckIcon, CopyIcon, ExternalLinkIcon } from 'lucide-react'
+import { CalendarPlusIcon, CheckIcon, CopyIcon, ExternalLinkIcon, SparklesIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Modal from '../ui/Modal'
 import api from '../../config/api'
 import { apiError, copyText, googleCalendarLink, inviteLink } from '../../lib/meetings'
 import { formatDateTime } from '../../lib/format'
+import { useAiStatus } from '../../hooks/useAiStatus'
 
 const pad = (n) => String(n).padStart(2, '0');
 const toDateInput = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -21,6 +22,26 @@ const ScheduleModal = ({ open, onClose, onCreated }) => {
   });
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(null);
+  const [drafting, setDrafting] = useState(false);
+  const ai = useAiStatus();
+
+  // AI drafts a timed agenda from the title (and any notes already typed)
+  const draftAgenda = async () => {
+    if (!form.title.trim()) {
+      toast.error('Add a title first so the AI knows what the meeting is about');
+      return;
+    }
+    setDrafting(true);
+    try {
+      const { data } = await api.post('/api/ai/agenda', { title: form.title, notes: form.description, minutes: 30 });
+      const text = [data.agenda.goal, '', ...data.agenda.items.map((i) => `• ${i.title} (${i.minutes} min)`)].join('\n');
+      setForm((f) => ({ ...f, description: text.slice(0, 500) }));
+    } catch (err) {
+      toast.error(apiError(err, "Couldn't draft an agenda"));
+    } finally {
+      setDrafting(false);
+    }
+  };
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
   const when = new Date(`${form.date}T${form.time}`);
@@ -104,8 +125,15 @@ const ScheduleModal = ({ open, onClose, onCreated }) => {
           </div>
           {inPast && <p className="text-[13px] text-danger" role="alert">Pick a time in the future.</p>}
           <div className="field">
-            <label htmlFor="s-desc">Agenda <span className="text-fg-3">(optional)</span></label>
-            <textarea id="s-desc" className="input" rows={3} maxLength={500} placeholder="What's this meeting about?" value={form.description} onChange={set('description')} />
+            <div className="flex items-center justify-between">
+              <label htmlFor="s-desc" className="text-[13px] font-medium text-fg-2">Agenda <span className="text-fg-3">(optional)</span></label>
+              {ai?.enabled && (
+                <button type="button" className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] font-semibold text-accent-text hover:bg-accent-soft disabled:opacity-60" onClick={draftAgenda} disabled={drafting}>
+                  {drafting ? <span className="spinner size-3.5" /> : <SparklesIcon size={14} />} {drafting ? 'Drafting…' : 'Draft with AI'}
+                </button>
+              )}
+            </div>
+            <textarea id="s-desc" className="input" rows={5} maxLength={500} placeholder="What's this meeting about?" value={form.description} onChange={set('description')} />
           </div>
         </form>
       )}

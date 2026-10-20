@@ -47,6 +47,7 @@ const SHORTCUTS = [
   ['L', 'Live captions'],
   ['C', 'Open chat'],
   ['P', 'Show people'],
+  ['A', 'AI: catch me up'],
   ['G', 'Grid or spotlight'],
   ['1 – 8', 'Send a reaction'],
   ['?', 'This list'],

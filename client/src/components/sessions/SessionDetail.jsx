@@ -6,6 +6,7 @@ import api from '../../config/api'
 import Modal from '../ui/Modal'
 import Avatar from '../ui/Avatar'
 import EmptyState from '../ui/EmptyState'
+import AiRecap from '../ai/AiRecap'
 import { apiError, copyText, inviteLink } from '../../lib/meetings'
 import { formatDateTime, formatDuration, formatTime, meetingDuration, toDate } from '../../lib/format'
 
@@ -117,7 +118,7 @@ const ChatLog = ({ session }) => (
 const SessionDetail = ({ meetingId, onClose, onDeleted, currentUserId }) => {
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
-  const [tab, setTab] = useState('overview');
+  const [tab, setTab] = useState('ai');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -125,7 +126,7 @@ const SessionDetail = ({ meetingId, onClose, onDeleted, currentUserId }) => {
     if (!meetingId) return;
     let cancelled = false;
     setSession(null);
-    setTab('overview');
+    setTab('ai');
     setConfirmDelete(false);
     api.get(`/api/meetings/sessions/${meetingId}`)
       .then(({ data }) => !cancelled && setSession(data.meeting))
@@ -203,12 +204,13 @@ const SessionDetail = ({ meetingId, onClose, onDeleted, currentUserId }) => {
           {session.description && <p className="mt-4 rounded-2xl border border-line bg-surface p-4 text-sm text-fg-2">{session.description}</p>}
 
           <div className="segmented mt-5 w-full sm:w-auto" role="tablist">
-            {[['overview', 'Attendance'], ['transcript', `Transcript · ${session.transcript.length}`], ['chat', `Chat · ${session.messages.length}`]].map(([id, label]) => (
+            {[['ai', 'AI recap'], ['overview', 'Attendance'], ['transcript', `Transcript · ${session.transcript.length}`], ['chat', `Chat · ${session.messages.length}`]].map(([id, label]) => (
               <button key={id} role="tab" aria-selected={tab === id} aria-pressed={tab === id} className="flex-1 justify-center sm:flex-none" onClick={() => setTab(id)}>{label}</button>
             ))}
           </div>
 
           <div className="mt-5">
+            {tab === 'ai' && <AiRecap session={session} />}
             {tab === 'overview' && <Attendance session={session} />}
             {tab === 'transcript' && <Transcript session={session} />}
             {tab === 'chat' && <ChatLog session={session} />}
