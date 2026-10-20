@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "server": "nodemon server.js",
-    "test:security": "node scripts/security-test.mjs"
+    "test:security": "node scripts/security-test.mjs",
+    "seed": "node scripts/seed.mjs"
   },
   "keywords": [],
   "author": "",

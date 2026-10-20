@@ -7,6 +7,7 @@ import { initDB } from "./config/db.js";
 import { clerkMiddleware } from '@clerk/express'
 import { handleClerkWebhook } from "./controllers/webhookController.js";
 import meetingRouter from "./routes/meetingRoutes.js";
+import demoRouter from "./routes/demoRoutes.js";
 import { Server } from "socket.io";
 import { resumeActiveMeetings, setupSocketIO } from "./socket.js";
 
@@ -30,6 +31,7 @@ app.use(clerkMiddleware())
 app.get("/", (req, res)=> res.send("Meetora API is live"))
 app.get("/api/health", (req, res)=> res.json({ ok: true }))
 app.use("/api/meetings", meetingRouter)
+app.use("/api/demo", demoRouter)
 
 const io = new Server(server, {
     cors: {origin: allowedOrigins, credentials: true}

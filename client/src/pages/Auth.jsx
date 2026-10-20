@@ -6,9 +6,10 @@ import toast from 'react-hot-toast'
 import Logo from '../components/ui/Logo'
 import ThemeToggle from '../components/ui/ThemeToggle'
 import CallPreview from '../components/auth/CallPreview'
+import api from '../config/api'
 
-const DEMO_EMAIL = import.meta.env.VITE_DEMO_EMAIL;
-const DEMO_PASSWORD = import.meta.env.VITE_DEMO_PASSWORD;
+// Shows the demo button; the server issues the actual sign-in ticket
+const DEMO_ENABLED = Boolean(import.meta.env.VITE_DEMO_EMAIL);
 
 const FEATURES = [
   { icon: CaptionsIcon, title: 'Live captions', text: 'Speech turns into subtitles everyone sees, saved as a transcript.' },
@@ -40,15 +41,16 @@ const Auth = ({ mode = 'login' }) => {
     if (!clerk.loaded) return;
     setDemoLoading(true);
     try {
-      const attempt = await clerk.client.signIn.create({ identifier: DEMO_EMAIL, password: DEMO_PASSWORD });
+      const { data } = await api.post('/api/demo/session');
+      const attempt = await clerk.client.signIn.create({ strategy: 'ticket', ticket: data.ticket });
       if (attempt.status !== 'complete') {
-        throw new Error('The demo account needs an extra verification step. Sign in with the form instead.');
+        throw new Error('The demo account needs an extra verification step. Use the form instead.');
       }
       await clerk.setActive({ session: attempt.createdSessionId });
       toast.success('Signed in to the demo account');
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      toast.error(err.errors?.[0]?.longMessage || err.message || 'Could not open the demo account');
+      toast.error(err.response?.data?.error || err.errors?.[0]?.longMessage || err.message || 'Could not open the demo account');
     } finally {
       setDemoLoading(false);
     }
@@ -95,7 +97,7 @@ const Auth = ({ mode = 'login' }) => {
               )}
             </div>
 
-            {DEMO_EMAIL && DEMO_PASSWORD && (
+            {DEMO_ENABLED && (
               <>
                 <div className="my-5 flex items-center gap-3 text-xs text-fg-3">
                   <span className="h-px flex-1 bg-line" /> or <span className="h-px flex-1 bg-line" />
