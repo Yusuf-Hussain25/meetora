@@ -1,11 +1,50 @@
 import { verifyToken } from "@clerk/backend";
 import { sql } from "./config/db.js";
 import { ensureUser } from "./lib/users.js";
+import { getRoom, rooms } from "./lib/rooms.js";
 
 const MAX_MESSAGE_LENGTH = 2000;
+const MAX_CAPTION_LENGTH = 500;
+const CHAT_HISTORY_LIMIT = 200;
+const REACTIONS = new Set(["👍", "❤️", "😂", "🎉", "👏", "🔥", "😮", "💚"]);
+// A meeting nobody returns to for this long is ended automatically
+const AUTO_END_MS = 10 * 60 * 1000;
 
-// Socket.IO Room State: roomId -> Map<socketId, participantObject>
-const rooms = new Map();
+const endMeetingInDb = async (meetingDbId, { useLastActivity = false } = {}) => {
+    if (useLastActivity) {
+        await sql`
+            UPDATE meetings SET status = 'ended', updated_at = NOW(),
+                ended_at = COALESCE((SELECT MAX(left_at) FROM meeting_participants WHERE meeting_id = ${meetingDbId}), NOW())
+            WHERE id = ${meetingDbId} AND status = 'active'`;
+    } else {
+        await sql`UPDATE meetings SET status = 'ended', ended_at = NOW(), updated_at = NOW() WHERE id = ${meetingDbId}`;
+    }
+    await sql`UPDATE meeting_participants SET left_at = NOW() WHERE meeting_id = ${meetingDbId} AND left_at IS NULL`;
+};
+
+// Ends the meeting if the room is still empty after AUTO_END_MS
+const scheduleAutoEnd = (roomId, meetingDbId) => {
+    const room = getRoom(roomId, true);
+    clearTimeout(room.emptyTimer);
+    room.emptyTimer = setTimeout(async () => {
+        const current = rooms.get(roomId);
+        if (current && current.participants.size > 0) return;
+        rooms.delete(roomId);
+        try {
+            await endMeetingInDb(meetingDbId, { useLastActivity: true });
+        } catch (err) {
+            console.error("Auto-end failed:", err);
+        }
+    }, AUTO_END_MS);
+    room.emptyTimer.unref?.();
+};
+
+// After a restart nobody is connected: give every active meeting the same grace period
+export const resumeActiveMeetings = async () => {
+    const active = await sql`SELECT id, meeting_id FROM meetings WHERE status = 'active'`;
+    active.forEach((m) => scheduleAutoEnd(m.meeting_id, m.id));
+    return active.length;
+};
 
 export function setupSocketIO(io){
     // Every socket must carry a valid Clerk session token. The user id comes from the
@@ -31,11 +70,13 @@ export function setupSocketIO(io){
         let currentUser = null;
         let currentMeeting = null; // { id, hostId }
 
-        const isInRoom = (socketId) => Boolean(currentRoomId && rooms.get(currentRoomId)?.has(socketId));
+        const room = () => (currentRoomId ? rooms.get(currentRoomId) : null);
+        const isInRoom = (socketId) => Boolean(room()?.participants.has(socketId));
+        const isHost = () => Boolean(currentMeeting && currentMeeting.hostId === authUser.id);
 
         // Marks this user as gone from the meeting once their last socket in the room leaves
         const markLeft = async (roomId, meetingDbId) => {
-            const stillHere = Array.from(rooms.get(roomId)?.values() || []).some((p) => p.userId === authUser.id);
+            const stillHere = Array.from(rooms.get(roomId)?.participants.values() || []).some((p) => p.userId === authUser.id);
             if (stillHere) return;
             try {
                 await sql`
@@ -50,22 +91,25 @@ export function setupSocketIO(io){
             if (!currentRoomId) return;
             const roomId = currentRoomId;
             const meeting = currentMeeting;
-            const roomParticipants = rooms.get(roomId);
+            const state = rooms.get(roomId);
 
             socket.leave(roomId);
             currentRoomId = null;
             currentMeeting = null;
 
-            if (roomParticipants) {
-                roomParticipants.delete(socket.id);
-                if (roomParticipants.size === 0) {
-                    rooms.delete(roomId);
-                } else {
-                    // Notify remaining peers that a user disconnected
-                    socket.to(roomId).emit("user-left", { socketId: socket.id, user: currentUser });
-                }
+            if (state) {
+                state.participants.delete(socket.id);
+                socket.to(roomId).emit("user-left", { socketId: socket.id, user: currentUser });
+                if (state.participants.size === 0 && meeting) scheduleAutoEnd(roomId, meeting.id);
             }
             if (meeting) await markLeft(roomId, meeting.id);
+        };
+        socket.data.leaveRoom = leaveCurrentRoom;
+
+        const updateSelf = (patch, event) => {
+            if (!currentRoomId || !currentUser) return;
+            Object.assign(currentUser, patch);
+            socket.to(currentRoomId).emit(event, { socketId: socket.id, ...patch });
         };
 
         // User joins a meeting room
@@ -74,8 +118,8 @@ export function setupSocketIO(io){
                 if (typeof roomId !== "string") return;
                 if (currentRoomId) await leaveCurrentRoom();
 
-                // Verify meeting status from DB
-                const meetings = await sql`SELECT id, host_id, status FROM meetings WHERE meeting_id = ${roomId}`;
+                const meetings = await sql`
+                    SELECT id, host_id, status, title, started_at, created_at FROM meetings WHERE meeting_id = ${roomId}`;
 
                 if (meetings.length === 0){
                     socket.emit("meeting-ended", {message: "Meeting not found."})
@@ -88,22 +132,35 @@ export function setupSocketIO(io){
                     return;
                 }
 
-                if(!rooms.has(roomId)){
-                    rooms.set(roomId, new Map())
+                const state = getRoom(roomId, true);
+                if (state.removed.has(authUser.id)) {
+                    socket.emit("meeting-ended", { message: "The host removed you from this meeting." });
+                    return;
                 }
-                const roomParticipants = rooms.get(roomId);
 
-                // Fetch host plan to enforce participant limits (10 for Free, 100 for Premium)
+                // Enforce participant limits from the host's plan (10 Free, 100 Premium)
                 const hosts = await sql`SELECT plan FROM users WHERE id = ${meeting.host_id}`;
                 const hostPlan = hosts[0]?.plan || "free";
                 const maxParticipants = hostPlan === "premium" ? 100 : 10;
 
-                if (roomParticipants.size >= maxParticipants){
+                if (state.participants.size >= maxParticipants){
                     socket.emit("meeting-ended", {
-                        message: `Meeting capacity limit reached (max ${maxParticipants} participants for ${hostPlan.toUpperCase()} plan). Host must upgrade to Premium for up to 100 participants!`,
+                        message: `This meeting is full (max ${maxParticipants} people on the host's ${hostPlan} plan).`,
                     })
                     return;
                 }
+
+                // First join starts a scheduled meeting and stamps the real start time
+                let startedAt = meeting.started_at;
+                if (meeting.status === "scheduled" || !startedAt) {
+                    const [started] = await sql`
+                        UPDATE meetings SET status = 'active', started_at = COALESCE(started_at, NOW()), updated_at = NOW()
+                        WHERE id = ${meeting.id} RETURNING started_at`;
+                    startedAt = started.started_at;
+                }
+
+                clearTimeout(state.emptyTimer);
+                state.emptyTimer = null;
 
                 currentRoomId = roomId;
                 currentMeeting = { id: meeting.id, hostId: meeting.host_id };
@@ -115,13 +172,16 @@ export function setupSocketIO(io){
                     isHost: meeting.host_id === authUser.id,
                     audioEnabled: Boolean(audioEnabled),
                     videoEnabled: Boolean(videoEnabled),
+                    handRaised: false,
+                    screenSharing: false,
+                    joinedAt: new Date().toISOString(),
                 }
 
                 socket.join(roomId)
 
                 // Get existing participants in the room, then add the newcomer
-                const existingUsers = Array.from(roomParticipants.values());
-                roomParticipants.set(socket.id, currentUser);
+                const existingUsers = Array.from(state.participants.values());
+                state.participants.set(socket.id, currentUser);
 
                 // One attendance row per user per meeting; a rejoin clears left_at
                 const updated = await sql`
@@ -133,6 +193,23 @@ export function setupSocketIO(io){
                         INSERT INTO meeting_participants (meeting_id, user_id, name, joined_at)
                         VALUES (${meeting.id}, ${authUser.id}, ${authUser.name}, NOW())`;
                 }
+
+                const history = await sql`
+                    SELECT * FROM (
+                        SELECT mm.id, mm.sender_id, mm.sender_name, mm.text, mm.timestamp, u.image
+                        FROM meeting_messages mm LEFT JOIN users u ON u.id = mm.sender_id
+                        WHERE mm.meeting_id = ${meeting.id}
+                        ORDER BY mm.timestamp DESC LIMIT ${CHAT_HISTORY_LIMIT}
+                    ) recent ORDER BY timestamp ASC`;
+
+                socket.emit("room-state", {
+                    meeting: { title: meeting.title, hostId: meeting.host_id, startedAt },
+                    self: currentUser,
+                    messages: history.map((m) => ({
+                        id: m.id, senderId: m.sender_id, senderName: m.sender_name, senderImage: m.image || "",
+                        text: m.text, timestamp: m.timestamp,
+                    })),
+                });
 
                 // Send list of existing users to the newcomer
                 socket.emit("all-users", existingUsers);
@@ -172,22 +249,44 @@ export function setupSocketIO(io){
             })
         })
 
-        socket.on('toggle-audio', ({ audioEnabled })=>{
-            if (!currentRoomId) return;
-            currentUser.audioEnabled = Boolean(audioEnabled);
-            socket.to(currentRoomId).emit('user-toggled-audio', {
+        socket.on('toggle-audio', ({ audioEnabled }) => updateSelf({ audioEnabled: Boolean(audioEnabled) }, 'user-toggled-audio'))
+        socket.on('toggle-video', ({ videoEnabled }) => updateSelf({ videoEnabled: Boolean(videoEnabled) }, 'user-toggled-video'))
+        socket.on('raise-hand', ({ raised }) => updateSelf({ handRaised: Boolean(raised) }, 'user-hand'))
+        socket.on('screen-share', ({ sharing }) => updateSelf({ screenSharing: Boolean(sharing) }, 'user-screen'))
+
+        // Emoji reactions float over the sender's tile for everyone, sender included
+        socket.on('reaction', ({ emoji }) => {
+            if (!currentRoomId || !REACTIONS.has(emoji)) return;
+            io.in(currentRoomId).emit('reaction', {
+                id: `${socket.id}-${Date.now()}`,
                 socketId: socket.id,
-                audioEnabled: currentUser.audioEnabled,
-            })
+                userName: authUser.name,
+                emoji,
+            });
         })
 
-        socket.on('toggle-video', ({ videoEnabled })=>{
-            if (!currentRoomId) return;
-            currentUser.videoEnabled = Boolean(videoEnabled);
-            socket.to(currentRoomId).emit('user-toggled-video', {
+        // Live captions: interim text is relayed, final sentences are saved as the transcript
+        socket.on('caption', async ({ text, final, lineId }) => {
+            if (!currentRoomId || !currentMeeting) return;
+            const clean = String(text || "").trim().slice(0, MAX_CAPTION_LENGTH);
+            if (!clean) return;
+            socket.to(currentRoomId).emit('caption', {
                 socketId: socket.id,
-                videoEnabled: currentUser.videoEnabled,
-            })
+                userId: authUser.id,
+                userName: authUser.name,
+                text: clean,
+                final: Boolean(final),
+                lineId: String(lineId || "").slice(0, 64),
+            });
+            if (final) {
+                try {
+                    await sql`
+                        INSERT INTO meeting_transcripts (meeting_id, speaker_id, speaker_name, text)
+                        VALUES (${currentMeeting.id}, ${authUser.id}, ${authUser.name}, ${clean})`;
+                } catch (err) {
+                    console.error("Error saving caption:", err);
+                }
+            }
         })
 
         // Chat message -> persist to DB & broadcast. Sender comes from the verified socket user.
@@ -204,8 +303,10 @@ export function setupSocketIO(io){
 
                 io.in(currentRoomId).emit("receive-message", {
                     id: saved.id,
+                    clientId: String(message?.clientId || "").slice(0, 64),
                     senderId: authUser.id,
                     senderName: authUser.name,
+                    senderImage: authUser.image || "",
                     senderSocketId: socket.id,
                     text,
                     timestamp: saved.timestamp,
@@ -215,22 +316,40 @@ export function setupSocketIO(io){
             }
         })
 
+        // Host controls ---------------------------------------------------------------
+        socket.on('host-mute', ({ targetSocketId }) => {
+            if (!isHost() || !isInRoom(targetSocketId) || targetSocketId === socket.id) return;
+            io.to(targetSocketId).emit('force-mute', { by: authUser.name });
+        })
+
+        socket.on('host-mute-all', () => {
+            if (!isHost()) return;
+            socket.to(currentRoomId).emit('force-mute', { by: authUser.name });
+        })
+
+        socket.on('host-remove', async ({ targetSocketId }) => {
+            if (!isHost() || !isInRoom(targetSocketId) || targetSocketId === socket.id) return;
+            const target = io.sockets.sockets.get(targetSocketId);
+            const targetUser = room().participants.get(targetSocketId);
+            if (!target || !targetUser || targetUser.userId === authUser.id) return;
+
+            room().removed.add(targetUser.userId);
+            target.emit('meeting-ended', { message: "The host removed you from this meeting.", removed: true });
+            await target.data.leaveRoom?.();
+        })
+
         // Only the host can end the meeting for everyone
         socket.on('end-meeting', async ()=>{
             try {
-                if (!currentRoomId || !currentMeeting || currentMeeting.hostId !== authUser.id) return;
+                if (!currentRoomId || !isHost()) return;
                 const roomId = currentRoomId;
                 const meetingDbId = currentMeeting.id;
 
-                await sql`
-                    UPDATE meetings SET status = 'ended', ended_at = NOW(), updated_at = NOW()
-                    WHERE id = ${meetingDbId}`;
-                await sql`
-                    UPDATE meeting_participants SET left_at = NOW()
-                    WHERE meeting_id = ${meetingDbId} AND left_at IS NULL`;
+                await endMeetingInDb(meetingDbId);
 
-                socket.to(roomId).emit("meeting-ended", { message: "The meeting has been ended by the host." });
+                socket.to(roomId).emit("meeting-ended", { message: "The host ended the meeting.", endedByHost: true });
                 io.in(roomId).socketsLeave(roomId);
+                clearTimeout(rooms.get(roomId)?.emptyTimer);
                 rooms.delete(roomId);
                 currentRoomId = null;
                 currentMeeting = null;

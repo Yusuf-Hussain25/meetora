@@ -8,13 +8,15 @@ import { clerkMiddleware } from '@clerk/express'
 import { handleClerkWebhook } from "./controllers/webhookController.js";
 import meetingRouter from "./routes/meetingRoutes.js";
 import { Server } from "socket.io";
-import { setupSocketIO } from "./socket.js";
+import { resumeActiveMeetings, setupSocketIO } from "./socket.js";
 
 const app = express();
 const server = http.createServer(app)
 
 // Connect to Neon & Initialize Tables
 await initDB()
+// Meetings left "active" by a previous run end on their own if nobody rejoins
+await resumeActiveMeetings()
 
 const allowedOrigins = (process.env.ORIGINS || "http://localhost:5173").split(",").map((o) => o.trim()).filter(Boolean)
 app.use(cors({origin: allowedOrigins, credentials: true}))
@@ -25,7 +27,8 @@ app.use("/api/clerk", express.raw({type: "application/json" }), handleClerkWebho
 app.use(express.json())
 app.use(clerkMiddleware())
 
-app.get("/", (req, res)=> res.send("API is Live!"))
+app.get("/", (req, res)=> res.send("Meetora API is live"))
+app.get("/api/health", (req, res)=> res.json({ ok: true }))
 app.use("/api/meetings", meetingRouter)
 
 const io = new Server(server, {

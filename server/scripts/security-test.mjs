@@ -90,6 +90,49 @@ try {
   const det2 = await fetch(`${API}/api/meetings/sessions/${roomA}`, { headers: { authorization: `Bearer ${await guest.token()}` } });
   check("participant can read session details", det2.status === 200);
 
+  // Host controls, reactions and captions in a fresh meeting
+  const roomC = await mk(host, "Room C");
+  H.emit("join-room", { roomId: roomC }); await once(H, "all-users");
+  G.emit("join-room", { roomId: roomC }); await once(G, "all-users");
+
+  const muteLeak = once(H, "force-mute", 1000);
+  G.emit("host-mute", { targetSocketId: H.id });
+  check("non-host cannot mute others", (await muteLeak) === null);
+  const muted = once(G, "force-mute");
+  H.emit("host-mute", { targetSocketId: G.id });
+  check("host can ask a participant to mute", Boolean(await muted));
+
+  const bogus = once(H, "reaction", 800);
+  G.emit("reaction", { emoji: "<script>" });
+  check("reactions outside the emoji set are dropped", (await bogus) === null);
+  const react = once(H, "reaction");
+  G.emit("reaction", { emoji: "🎉" });
+  const r = await react;
+  check("reaction is broadcast with the sender's name", r && r.emoji === "🎉" && r.userName === "Sec guest");
+
+  const cap = once(H, "caption");
+  G.emit("caption", { text: "this sentence goes in the transcript", final: true, lineId: "l1" });
+  check("caption is relayed to the room", Boolean(await cap));
+  await wait(600);
+  const lines = await sql`SELECT t.speaker_id FROM meeting_transcripts t JOIN meetings m ON m.id = t.meeting_id WHERE m.meeting_id = ${roomC}`;
+  check("final caption saved to transcript as the verified speaker", lines.length === 1 && lines[0].speaker_id === guest.id);
+
+  const removedEvt = once(G, "meeting-ended");
+  G.emit("host-remove", { targetSocketId: H.id }); await wait(500);
+  check("non-host cannot remove the host", H.connected && (await sql`SELECT 1 FROM meetings WHERE meeting_id = ${roomC} AND status = 'active'`).length === 1);
+  H.emit("host-remove", { targetSocketId: G.id });
+  check("host can remove a participant", Boolean(await removedEvt));
+  const rejoin = once(G, "meeting-ended");
+  G.emit("join-room", { roomId: roomC });
+  const rj = await rejoin;
+  check("removed participant cannot rejoin", rj && /removed/i.test(rj.message));
+
+  const del = await fetch(`${API}/api/meetings/${roomC}`, { method: "DELETE", headers: { authorization: `Bearer ${await guest.token()}` } });
+  check("non-host cannot delete a meeting", del.status === 403);
+
+  const stats = await (await fetch(`${API}/api/meetings/stats?tz=Asia/Kolkata`, { headers: { authorization: `Bearer ${await host.token()}` } })).json();
+  check("stats return totals and 7 days of activity", stats.totals && stats.activity?.length === 7);
+
   [H, G, O].forEach((s) => s.close());
 } catch (e) {
   fail++; console.error("ERROR", e);

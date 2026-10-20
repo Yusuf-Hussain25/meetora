@@ -55,6 +55,28 @@ export async function initDB() {
             );
         `;
 
+        // 2.0: scheduled meetings, real start times and live-caption transcripts
+        await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS scheduled_for TIMESTAMPTZ`;
+        await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ`;
+        await sql`ALTER TABLE meetings ADD COLUMN IF NOT EXISTS description TEXT`;
+
+        await sql`
+            CREATE TABLE IF NOT EXISTS meeting_transcripts (
+                id SERIAL PRIMARY KEY,
+                meeting_id INT NOT NULL REFERENCES meetings(id) ON DELETE CASCADE ON UPDATE CASCADE,
+                speaker_id VARCHAR(255) REFERENCES users(id) ON DELETE SET NULL ON UPDATE CASCADE,
+                speaker_name VARCHAR(255) NOT NULL,
+                text TEXT NOT NULL,
+                timestamp TIMESTAMPTZ DEFAULT NOW()
+            );
+        `;
+
+        await sql`CREATE INDEX IF NOT EXISTS idx_meetings_host ON meetings(host_id, created_at DESC)`;
+        await sql`CREATE INDEX IF NOT EXISTS idx_participants_meeting ON meeting_participants(meeting_id)`;
+        await sql`CREATE INDEX IF NOT EXISTS idx_participants_user ON meeting_participants(user_id)`;
+        await sql`CREATE INDEX IF NOT EXISTS idx_messages_meeting ON meeting_messages(meeting_id, timestamp)`;
+        await sql`CREATE INDEX IF NOT EXISTS idx_transcripts_meeting ON meeting_transcripts(meeting_id, timestamp)`;
+
     } catch (error) {
         console.error("Error initializing database tables:", error);
         throw error;
