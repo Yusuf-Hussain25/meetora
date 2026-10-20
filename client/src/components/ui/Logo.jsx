@@ -1,7 +1,7 @@
 import { useId } from 'react'
 
-// Meetora mark: a bold "M" drawn as one continuous stroke, like two people leaning in,
-// with a live dot in the corner.
+// Meetora mark: two rings that meet, the bright overlap is the meeting point,
+// with a small spark for the AI features.
 export const LogoMark = ({ size = 32 }) => {
   const id = useId();
   return (
@@ -14,8 +14,10 @@ export const LogoMark = ({ size = 32 }) => {
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="9.5" fill={`url(#${id}-g)`} />
-      <path d="M8.5 22.5V11.8c0-.9 1.1-1.3 1.7-.7L16 17l5.8-5.9c.6-.6 1.7-.2 1.7.7v10.7" stroke="#03140F" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="24.6" cy="7.4" r="2.6" fill="#fff" stroke="#03140F" strokeWidth="1.4" />
+      <path d="M16 11.3a6.3 6.3 0 0 1 0 9.4 6.3 6.3 0 0 1 0-9.4z" fill="#fff" />
+      <circle cx="12.5" cy="16" r="6.3" stroke="#03140F" strokeWidth="2.8" />
+      <circle cx="19.5" cy="16" r="6.3" stroke="#03140F" strokeWidth="2.8" />
+      <path d="M26 3.6l.7 1.7 1.7.7-1.7.7-.7 1.7-.7-1.7-1.7-.7 1.7-.7z" fill="#fff" />
     </svg>
   );
 };
