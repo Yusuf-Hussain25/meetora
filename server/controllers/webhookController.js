@@ -12,7 +12,7 @@ export const handleClerkWebhook = async (req, res) => {
         case "user.created": {
             const userId = data.id;
             const primaryEmail = data.email_addresses?.[0]?.email_address || "";
-            const name = `${data.first_name || "User"} ${data.last_name}`;
+            const name = [data.first_name, data.last_name].filter(Boolean).join(" ") || primaryEmail.split("@")[0] || "User";
             const image = data.image_url || "";
             const plan = "free";
 
@@ -32,7 +32,7 @@ export const handleClerkWebhook = async (req, res) => {
         case "user.updated": {
             const userId = data.id;
             const primaryEmail = data.email_addresses?.[0]?.email_address || "";
-            const name = `${data.first_name || "User"} ${data.last_name}`;
+            const name = [data.first_name, data.last_name].filter(Boolean).join(" ") || primaryEmail.split("@")[0] || "User";
             const image = data.image_url || "";
 
             await sql`

@@ -16,7 +16,7 @@ const server = http.createServer(app)
 // Connect to Neon & Initialize Tables
 await initDB()
 
-const allowedOrigins = process.env.ORIGINS.split(",")
+const allowedOrigins = (process.env.ORIGINS || "http://localhost:5173").split(",").map((o) => o.trim()).filter(Boolean)
 app.use(cors({origin: allowedOrigins, credentials: true}))
 app.use(cookieParser())
 

@@ -45,7 +45,7 @@ if(!isOpen) return null;
                         <div key={msg.id || index} className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
                             <div className='flex items-center gap-2 mb-1'>
                                 <span className="text-xs font-semibold text-slate-500">{isMe ? "You" : msg.senderName}</span>
-                                <span className="text-[10px] text-slate-400">{msg.time}</span>
+                                <span className="text-[10px] text-slate-400">{new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                             </div>
                             <div className={`px-3.5 py-2.5 rounded-2xl max-w-[85%] text-sm leading-relaxed shadow-xs ${isMe 
                                 ? "bg-primary text-white rounded-tr-none font-medium" 

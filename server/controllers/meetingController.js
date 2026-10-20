@@ -9,7 +9,7 @@ const generateMeetingId = () =>{
 // create meeting
 export const createMeeting = async (req, res)=>{
     try {
-        const { title } = req.body;
+        const title = String(req.body?.title || "").trim().slice(0, 120);
         const userId = req.user.id;
 
         // Fetch user details & plan
@@ -70,7 +70,7 @@ export const createMeeting = async (req, res)=>{
         
     } catch (error) {
         console.error("createMeeting failed:", error);
-+        res.status(500).json({ error: "Failed to create meeting" });
+        res.status(500).json({ error: "Failed to create meeting" });
     }
 }
 
@@ -108,7 +108,7 @@ export const getMeeting = async (req, res)=>{
 
     } catch (error) {
         console.error("Fetch Meeting failed:", error);
-+        res.status(500).json({ error: "Failed to fetch meeting" });
+        res.status(500).json({ error: "Failed to fetch meeting" });
     }
 }
 
@@ -119,64 +119,61 @@ export const getUserSessions = async (req, res)=>{
 
         // Fetch meetings where user is host OR listed in participants
         const meetings = await sql`
-            SELECT DISTINCT m.id, m.meeting_id, m.title, m.status, m.created_at, m.ended_at,
+            SELECT m.id, m.meeting_id, m.title, m.status, m.created_at, m.ended_at,
                    m.host_id, u.name as host_name, u.email as host_email
             FROM meetings m
             JOIN users u ON m.host_id = u.id
-            LEFT JOIN meeting_participants mp ON m.id = mp.meeting_id
-            WHERE m.host_id = ${userId} OR mp.user_id = ${userId}
+            WHERE m.host_id = ${userId}
+               OR EXISTS (SELECT 1 FROM meeting_participants mp WHERE mp.meeting_id = m.id AND mp.user_id = ${userId})
             ORDER BY m.created_at DESC
         `;
 
-    const formattedMeetings = await Promise.all(
-        meetings.map(async (m)=>{
-            const participants = await sql`
-                SELECT mp.*, u.email
-                FROM meeting_participants mp
-                LEFT JOIN users u ON mp.user_id = u.id
-                WHERE mp.meeting_id = ${m.id}
-            `;
+        // Two batched queries instead of two per meeting
+        const ids = meetings.map((m) => m.id);
+        const participants = ids.length ? await sql`
+            SELECT mp.*, u.email
+            FROM meeting_participants mp
+            LEFT JOIN users u ON mp.user_id = u.id
+            WHERE mp.meeting_id = ANY(${ids})
+        ` : [];
+        const messages = ids.length ? await sql`
+            SELECT id, meeting_id, sender_id, sender_name, text, timestamp
+            FROM meeting_messages
+            WHERE meeting_id = ANY(${ids})
+            ORDER BY timestamp ASC
+        ` : [];
 
-            const messages = await sql`
-                SELECT id, sender_id, sender_name, text, timestamp
-                FROM meeting_messages
-                WHERE meeting_id = ${m.id}
-                ORDER BY timestamp ASC
-            `;
+        const formattedMeetings = meetings.map((m) => ({
+            id: m.id,
+            meetingId: m.meeting_id,
+            title: m.title,
+            status: m.status,
+            createdAt: m.created_at,
+            endedAt: m.ended_at,
+            host: {
+                id: m.host_id,
+                name: m.host_name,
+                email: m.host_email,
+            },
+            participants: participants.filter((p) => p.meeting_id === m.id).map((p)=>({
+                user: p.user_id ? {id: p.user_id, email: p.email } : null,
+                name: p.name,
+                joinedAt: p.joined_at,
+                leftAt: p.left_at,
+            })),
+            messages: messages.filter((msg) => msg.meeting_id === m.id).map((msg)=>({
+                id: msg.id,
+                sender: msg.sender_id,
+                senderName: msg.sender_name,
+                text: msg.text,
+                timestamp: msg.timestamp,
+            }))
+        }));
 
-            return {
-                id: m.id,
-                meetingId: m.meeting_id,
-                title: m.title,
-                status: m.status,
-                createdAt: m.created_at,
-                endedAt: m.ended_at,
-                host: {
-                    id: m.host_id,
-                    name: m.host_name,
-                    email: m.host_email,
-                },
-                participants: participants.map((p)=>({
-                    user: p.user_id ? {id: p.user_id, email: p.email } : null,
-                    name: p.name,
-                    joinedAt: p.joined_at,
-                    leftAt: p.left_at,
-                })),
-                messages: messages.map((msg)=>({
-                    id: msg.id,
-                    sender: msg.sender_id,
-                    senderName: msg.sender_name,
-                    text: msg.text,
-                    timestamp: msg.timestamp,
-                }))
-            }
-        })
-    )
-
-    res.json({meetings: formattedMeetings})
+        res.json({meetings: formattedMeetings})
     } catch (error) {
         console.error("get User sessions failed:", error);
-+        res.status(500).json({ error: "Failed to get user sessions" });
+        res.status(500).json({ error: "Failed to get user sessions" });
     }
 }
 
@@ -255,7 +252,7 @@ export const getSessionDetails = async (req, res)=>{
         res.json({ meeting: formattedMeeting });
     } catch (error) {
         console.error("get session details failed:", error);
-+        res.status(500).json({ error: "Failed to get session details" });
+        res.status(500).json({ error: "Failed to get session details" });
     }
 }
 
@@ -284,6 +281,6 @@ export const getMeetingStats = async (req, res)=>{
 
     } catch (error) {
         console.error("get meeting stats failed:", error);
-+        res.status(500).json({ error: "Failed to get meeting stats" });
+        res.status(500).json({ error: "Failed to get meeting stats" });
     }
 }
