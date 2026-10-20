@@ -51,8 +51,9 @@ export const clerkAppearance = (theme = "dark") => ({
             height: "44px",
             boxShadow: "0 6px 24px rgba(16,185,129,.32)",
         },
-        socialButtonsBlockButton: { height: "44px" },
-        formFieldInput: { height: "44px" },
+        socialButtonsBlockButton: { height: "44px", border: "1px solid var(--border-strong)", background: "var(--surface)", boxShadow: "none" },
+        formFieldInput: { height: "44px", border: "1px solid var(--border-strong)", boxShadow: "none" },
+        dividerLine: { background: "var(--border-strong)" },
         userButtonPopoverCard: { borderRadius: "18px" },
     },
 });

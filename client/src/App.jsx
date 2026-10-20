@@ -1,7 +1,7 @@
 import React from 'react'
 import { Toaster } from 'react-hot-toast'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import Login from './pages/Login'
+import Auth from './pages/Auth'
 import ProtectedRoute from './components/ProtectedRoute'
 import Protectedlayout from './components/Protectedlayout'
 import Dashboard from './pages/Dashboard'
@@ -30,8 +30,9 @@ const App = () => {
       />
       <Routes>
         {/* Public Routes */}
-        <Route path='/login' element={ <Login mode="login"/>}/>
-        <Route path='/register' element={ <Login mode="register"/>}/>
+        {/* Clerk uses sub-paths for later steps (e.g. /register/verify-email-address) */}
+        <Route path='/login/*' element={ <Auth mode="login"/>}/>
+        <Route path='/register/*' element={ <Auth mode="register"/>}/>
 
         {/* Private Routes */}
         <Route element={<ProtectedRoute />}>
