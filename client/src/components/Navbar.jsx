@@ -3,6 +3,7 @@ import { dummyUser } from '../assets/asset'
 import { Link, useLocation } from 'react-router-dom'
 import { AstroidIcon, HistoryIcon, LayoutDashboardIcon } from 'lucide-react'
 import { UserButton, useUser } from '@clerk/react'
+import Logo from './ui/Logo'
 
 const Navbar = () => {
     const {isSignedIn, user} = useUser()
@@ -14,10 +15,7 @@ const Navbar = () => {
     {/* Brand Logo & Navigation Links */}
     <div className='flex items-center gap-6'>
         <Link to='/dashboard' className='flex items-center gap-1.5'>
-        <img src="/logo.svg" alt="Meetora logo" className="size-6.5"/>
-        <span className='text-2xl font-medium tracking-tight text-slate-900 flex items-center'>
-            Meetora<span className="text-primary">.</span>
-        </span>
+        <Logo size={28} />
         
         </Link>
 

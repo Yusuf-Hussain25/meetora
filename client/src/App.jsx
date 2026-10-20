@@ -12,7 +12,22 @@ import MeetingRoom from './pages/MeetingRoom'
 const App = () => {
   return (
     <>
-      <Toaster />
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          style: {
+            background: 'var(--panel-solid)',
+            color: 'var(--text)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: '14px',
+            boxShadow: 'var(--shadow-md)',
+            fontSize: '14px',
+            padding: '10px 14px',
+          },
+          success: { iconTheme: { primary: '#10b981', secondary: '#03140f' } },
+          error: { iconTheme: { primary: '#f43f5e', secondary: '#fff' } },
+        }}
+      />
       <Routes>
         {/* Public Routes */}
         <Route path='/login' element={ <Login mode="login"/>}/>
