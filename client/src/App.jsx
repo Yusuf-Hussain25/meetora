@@ -1,13 +1,16 @@
-import React from 'react'
+import { lazy, Suspense } from 'react'
 import { Toaster } from 'react-hot-toast'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import Auth from './pages/Auth'
 import ProtectedRoute from './components/ProtectedRoute'
-import Protectedlayout from './components/Protectedlayout'
+import AppLayout from './components/AppLayout'
+import Loader from './components/Loader'
+import Auth from './pages/Auth'
 import Dashboard from './pages/Dashboard'
-import Sessions from './pages/Sessions'
-import Pricing from './pages/Pricing'
-import MeetingRoom from './pages/MeetingRoom'
+
+// The meeting room (WebRTC, captions) and history load on demand
+const Sessions = lazy(() => import('./pages/Sessions'))
+const Plans = lazy(() => import('./pages/Plans'))
+const MeetingRoom = lazy(() => import('./pages/MeetingRoom'))
 
 const App = () => {
   return (
@@ -28,25 +31,26 @@ const App = () => {
           error: { iconTheme: { primary: '#f43f5e', secondary: '#fff' } },
         }}
       />
-      <Routes>
-        {/* Public Routes */}
-        {/* Clerk uses sub-paths for later steps (e.g. /register/verify-email-address) */}
-        <Route path='/login/*' element={ <Auth mode="login"/>}/>
-        <Route path='/register/*' element={ <Auth mode="register"/>}/>
+      <Suspense fallback={<Loader text="Loading" />}>
+        <Routes>
+          {/* Public Routes. Clerk uses sub-paths for later steps (e.g. /register/verify-email-address) */}
+          <Route path='/login/*' element={<Auth mode="login" />} />
+          <Route path='/register/*' element={<Auth mode="register" />} />
 
-        {/* Private Routes */}
-        <Route element={<ProtectedRoute />}>
-          <Route element={<Protectedlayout />}>
-            <Route path='/dashboard' element={ <Dashboard /> }/>
-            <Route path='/sessions' element={ <Sessions /> }/>
-            <Route path='/pricing' element={ <Pricing /> }/>
+          {/* Private Routes */}
+          <Route element={<ProtectedRoute />}>
+            <Route element={<AppLayout />}>
+              <Route path='/dashboard' element={<Dashboard />} />
+              <Route path='/sessions' element={<Sessions />} />
+              <Route path='/plans' element={<Plans />} />
+              <Route path='/pricing' element={<Navigate to='/plans' replace />} />
+            </Route>
+            <Route path='/meeting/:meetingId' element={<MeetingRoom />} />
           </Route>
-          <Route path='/meeting/:meetingId' element={ <MeetingRoom /> }/>
-        </Route>
 
-        {/* other Routes */}
-      <Route path='*' element={ <Navigate to='/dashboard' replace/> }/>
-      </Routes>
+          <Route path='*' element={<Navigate to='/dashboard' replace />} />
+        </Routes>
+      </Suspense>
     </>
   )
 }

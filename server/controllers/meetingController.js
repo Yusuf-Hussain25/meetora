@@ -133,21 +133,22 @@ export const getMeeting = async (req, res)=>{
 export const getUpcoming = async (req, res) => {
     try {
         const userId = req.user.id;
-        const scheduled = await sql`
+        const [scheduled, active] = await Promise.all([
+            sql`
             SELECT m.*, u.name AS host_name, u.email AS host_email, u.image AS host_image
             FROM meetings m JOIN users u ON m.host_id = u.id
             WHERE m.status = 'scheduled' AND m.host_id = ${userId}
             ORDER BY m.scheduled_for ASC
-            LIMIT 20`;
-
-        const active = await sql`
+            LIMIT 20`,
+            sql`
             SELECT m.*, u.name AS host_name, u.email AS host_email, u.image AS host_image
             FROM meetings m JOIN users u ON m.host_id = u.id
             WHERE m.status = 'active'
               AND (m.host_id = ${userId}
                    OR EXISTS (SELECT 1 FROM meeting_participants mp WHERE mp.meeting_id = m.id AND mp.user_id = ${userId}))
             ORDER BY m.created_at DESC
-            LIMIT 50`;
+            LIMIT 50`,
+        ]);
 
         res.json({
             upcoming: scheduled.map(formatMeeting),
@@ -225,24 +226,24 @@ export const getSessionDetails = async (req, res)=>{
             }
         }
 
-        const participants = await sql`
+        const [participants, messages, transcript] = await Promise.all([
+            sql`
             SELECT mp.*, u.email, u.image
             FROM meeting_participants mp
             LEFT JOIN users u ON mp.user_id = u.id
             WHERE mp.meeting_id = ${m.id}
-            ORDER BY mp.joined_at ASC`;
-
-        const messages = await sql`
+            ORDER BY mp.joined_at ASC`,
+            sql`
             SELECT mm.id, mm.sender_id, mm.sender_name, mm.text, mm.timestamp, u.image
             FROM meeting_messages mm LEFT JOIN users u ON mm.sender_id = u.id
             WHERE mm.meeting_id = ${m.id}
-            ORDER BY mm.timestamp ASC`;
-
-        const transcript = await sql`
+            ORDER BY mm.timestamp ASC`,
+            sql`
             SELECT id, speaker_id, speaker_name, text, timestamp
             FROM meeting_transcripts
             WHERE meeting_id = ${m.id}
-            ORDER BY timestamp ASC`;
+            ORDER BY timestamp ASC`,
+        ]);
 
         res.json({
             meeting: {
@@ -298,9 +299,10 @@ export const getMeetingStats = async (req, res)=>{
         const plan = req.user.plan || "free";
         const tz = TZ_RE.test(String(req.query.tz || "")) ? req.query.tz : "UTC";
 
-        const count = await monthlyCount(userId);
-
-        const [totals] = await sql`
+        // Independent queries run in parallel (each is a network round trip to Neon)
+        const [count, [totals], [people], [messages], activity, circle] = await Promise.all([
+            monthlyCount(userId),
+            sql`
             SELECT
               COUNT(DISTINCT m.id)::int AS meetings,
               COUNT(DISTINCT m.id) FILTER (WHERE m.host_id = ${userId})::int AS hosted,
@@ -308,25 +310,22 @@ export const getMeetingStats = async (req, res)=>{
                   COALESCE(mp.left_at, m.ended_at, NOW()) - mp.joined_at, ${MAX_SESSION}::interval))), 0)::float / 60 AS minutes
             FROM meeting_participants mp
             JOIN meetings m ON m.id = mp.meeting_id
-            WHERE mp.user_id = ${userId} AND m.status <> 'scheduled'`;
-
-        const [people] = await sql`
+            WHERE mp.user_id = ${userId} AND m.status <> 'scheduled'`,
+            sql`
             SELECT COUNT(DISTINCT COALESCE(other.user_id, other.name))::int AS count
             FROM meeting_participants mine
             JOIN meeting_participants other ON other.meeting_id = mine.meeting_id
             WHERE mine.user_id = ${userId}
-              AND (other.user_id IS NULL OR other.user_id <> ${userId})`;
-
-        const [messages] = await sql`SELECT COUNT(*)::int AS count FROM meeting_messages WHERE sender_id = ${userId}`;
-
-        const activity = await sql`
+              AND (other.user_id IS NULL OR other.user_id <> ${userId})`,
+            sql`SELECT COUNT(*)::int AS count FROM meeting_messages WHERE sender_id = ${userId}`,
+            sql`
             WITH days AS (
                 SELECT generate_series(
                     ((NOW() AT TIME ZONE ${tz})::date - 6)::timestamp,
                     ((NOW() AT TIME ZONE ${tz})::date)::timestamp,
                     interval '1 day')::date AS day
             )
-            SELECT d.day,
+            SELECT to_char(d.day, 'YYYY-MM-DD') AS day,
                    COUNT(DISTINCT mp.meeting_id)::int AS meetings,
                    COALESCE(SUM(EXTRACT(EPOCH FROM LEAST(
                        COALESCE(mp.left_at, m.ended_at, NOW()) - mp.joined_at, ${MAX_SESSION}::interval))), 0)::float / 60 AS minutes
@@ -335,7 +334,19 @@ export const getMeetingStats = async (req, res)=>{
                    ON mp.user_id = ${userId} AND (mp.joined_at AT TIME ZONE ${tz})::date = d.day
             LEFT JOIN meetings m ON m.id = mp.meeting_id
             GROUP BY d.day
-            ORDER BY d.day`;
+            ORDER BY d.day`,
+            // the people you meet most often
+            sql`
+            SELECT u.id, u.name, u.image, COUNT(DISTINCT other.meeting_id)::int AS meetings,
+                   MAX(other.joined_at) AS last_met
+            FROM meeting_participants mine
+            JOIN meeting_participants other ON other.meeting_id = mine.meeting_id AND other.user_id <> ${userId}
+            JOIN users u ON u.id = other.user_id
+            WHERE mine.user_id = ${userId}
+            GROUP BY u.id, u.name, u.image
+            ORDER BY meetings DESC, last_met DESC
+            LIMIT 6`,
+        ]);
 
         res.json({
             plan,
@@ -349,8 +360,9 @@ export const getMeetingStats = async (req, res)=>{
                 people: people.count,
                 messages: messages.count,
             },
+            circle: circle.map((c) => ({ id: c.id, name: c.name, image: c.image || "", meetings: c.meetings, lastMet: c.last_met })),
             activity: activity.map((a) => ({
-                day: a.day instanceof Date ? a.day.toISOString().slice(0, 10) : String(a.day).slice(0, 10),
+                day: a.day,
                 meetings: a.meetings,
                 minutes: Math.round(a.minutes),
             })),

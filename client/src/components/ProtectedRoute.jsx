@@ -7,7 +7,7 @@ const ProtectedRoute = () => {
   const {isLoaded, isSignedIn} = useAuth()
 
   if(!isLoaded){
-    return <Loader text="Authenticating..."/>
+    return <Loader text="Signing you in"/>
   }
 
   if(!isSignedIn){
