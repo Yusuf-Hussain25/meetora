@@ -36,7 +36,7 @@ const Plans = () => {
       <div className="text-center">
         <span className="chip chip-accent"><GemIcon size={13} /> Plans</span>
         <h1 className="mt-4 text-[32px] leading-tight font-semibold tracking-[-0.035em] sm:text-[42px]">Simple plans, <span className="gradient-text">no time limits.</span></h1>
-        <p className="mx-auto mt-3 max-w-lg text-fg-2">Every plan has unlimited call length and every 2.0 feature. Premium removes the monthly cap and fits bigger rooms.</p>
+        <p className="mx-auto mt-3 max-w-lg text-fg-2">Every plan has unlimited call length and every feature. Premium removes the monthly cap and fits bigger rooms.</p>
       </div>
 
       <div className="mt-10 grid gap-4 sm:gap-5 md:grid-cols-2">

@@ -67,7 +67,7 @@ const Auth = ({ mode = 'login' }) => {
       <main className="mx-auto grid w-full max-w-7xl gap-8 px-4 pb-14 sm:px-8 lg:grid-cols-[1.15fr_1fr] lg:gap-x-14 lg:pt-6">
         {/* Brand hero */}
         <section className="animate-fade-up lg:col-start-1 lg:row-start-1">
-            <span className="chip chip-accent"><SparklesIcon size={13} /> Meetora 2.0 is here</span>
+            <span className="chip chip-accent"><SparklesIcon size={13} /> Live captions, reactions and recaps</span>
             <h1 className="mt-5 text-[40px] leading-[1.04] font-semibold tracking-[-0.04em] sm:text-[54px]">
               Meetings that feel like<br className="hidden sm:block" /> <span className="gradient-text">you're in the room.</span>
             </h1>
